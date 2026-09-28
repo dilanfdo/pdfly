@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'screens/home_screen.dart';
 import 'services/consent_service.dart';
 import 'services/theme_controller.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Android 15+ forces edge-to-edge on apps targeting SDK 35+; opting in
+  // explicitly makes older Android versions behave the same way, so every
+  // screen's inset handling (SafeArea) is exercised on all devices, not just 15+.
+  await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   // Gathers ad consent (EEA/UK, via Google's UMP) and initializes the Mobile
   // Ads SDK before any screen that might request an ad gets built.
   await ConsentService.instance.gatherConsentAndInitializeAds();
