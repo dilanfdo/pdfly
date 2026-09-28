@@ -1,7 +1,9 @@
 import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
 import '../models/pdf_tool.dart';
 import '../services/pdf_service.dart';
 import 'processing_screen.dart';
@@ -23,7 +25,8 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
   int? _pageCount;
   bool _loadingPageCount = false;
 
-  bool get _isMultiFile => widget.tool == PdfTool.merge || widget.tool == PdfTool.imagesToPdf;
+  bool get _isMultiFile =>
+      widget.tool == PdfTool.merge || widget.tool == PdfTool.imagesToPdf;
   bool get _isImages => widget.tool == PdfTool.imagesToPdf;
 
   Future<void> _pickFiles() async {
@@ -51,7 +54,9 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
     if (picked.isEmpty) return;
 
     setState(() {
-      _files.addAll(picked.where((f) => f.path != null).map((f) => File(f.path!)));
+      _files.addAll(
+        picked.where((f) => f.path != null).map((f) => File(f.path!)),
+      );
     });
 
     if (widget.tool == PdfTool.split && _files.isNotEmpty) {
@@ -88,9 +93,16 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
   void _continue() {
     final service = PdfService.instance;
     final Future<File> Function() task = switch (widget.tool) {
-      PdfTool.compress => () => service.compressPdf(_files.first, quality: _quality),
+      PdfTool.compress => () => service.compressPdf(
+        _files.first,
+        quality: _quality,
+      ),
       PdfTool.merge => () => service.mergePdfs(_files, quality: _quality),
-      PdfTool.split => () => service.splitPdf(_files.first, fromPage: _fromPage, toPage: _toPage),
+      PdfTool.split => () => service.splitPdf(
+        _files.first,
+        fromPage: _fromPage,
+        toPage: _toPage,
+      ),
       PdfTool.imagesToPdf => () => service.imagesToPdf(_files),
     };
 
@@ -105,93 +117,117 @@ class _FilePickerScreenState extends State<FilePickerScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: Text(widget.tool.title)),
-      body: Column(
-        children: [
-          Expanded(
-            child: _files.isEmpty
-                ? Center(
-                    child: TextButton.icon(
-                      onPressed: _pickFiles,
-                      icon: const Icon(Icons.add),
-                      label: Text(_isImages ? 'Choose photos' : 'Choose PDF file(s)'),
-                    ),
-                  )
-                : ReorderableListView.builder(
-                    itemCount: _files.length,
-                    onReorderItem: _reorder,
-                    itemBuilder: (context, index) {
-                      final file = _files[index];
-                      return ListTile(
-                        key: ValueKey(file.path + index.toString()),
-                        leading: Icon(_isImages ? Icons.image : Icons.picture_as_pdf),
-                        title: Text(file.uri.pathSegments.last, overflow: TextOverflow.ellipsis),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close),
-                          onPressed: () => _removeAt(index),
+      body: SafeArea(
+        top: false,
+        child: Column(
+          children: [
+            Expanded(
+              child: _files.isEmpty
+                  ? Center(
+                      child: TextButton.icon(
+                        onPressed: _pickFiles,
+                        icon: const Icon(Icons.add),
+                        label: Text(
+                          _isImages ? 'Choose photos' : 'Choose PDF file(s)',
                         ),
-                      );
-                    },
+                      ),
+                    )
+                  : ReorderableListView.builder(
+                      itemCount: _files.length,
+                      onReorderItem: _reorder,
+                      itemBuilder: (context, index) {
+                        final file = _files[index];
+                        return ListTile(
+                          key: ValueKey(file.path + index.toString()),
+                          leading: Icon(
+                            _isImages ? Icons.image : Icons.picture_as_pdf,
+                          ),
+                          title: Text(
+                            file.uri.pathSegments.last,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () => _removeAt(index),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            if (_isMultiFile && _files.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _pickFiles,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Add more'),
                   ),
-          ),
-          if (_isMultiFile && _files.isNotEmpty)
+                ),
+              ),
+            if (widget.tool == PdfTool.compress || widget.tool == PdfTool.merge)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: SegmentedButton<CompressionQuality>(
+                  segments: const [
+                    ButtonSegment(
+                      value: CompressionQuality.low,
+                      label: Text('Low'),
+                    ),
+                    ButtonSegment(
+                      value: CompressionQuality.medium,
+                      label: Text('Medium'),
+                    ),
+                    ButtonSegment(
+                      value: CompressionQuality.high,
+                      label: Text('High'),
+                    ),
+                  ],
+                  selected: {_quality},
+                  onSelectionChanged: (s) => setState(() => _quality = s.first),
+                ),
+              ),
+            if (widget.tool == PdfTool.split && _files.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: _loadingPageCount
+                    ? const CircularProgressIndicator()
+                    : _pageCount == null
+                    ? const SizedBox.shrink()
+                    : Column(
+                        children: [
+                          Text(
+                            'Pages ${_fromPage + 1}–${_toPage + 1} of $_pageCount',
+                          ),
+                          RangeSlider(
+                            min: 0,
+                            max: (_pageCount! - 1).toDouble(),
+                            divisions: _pageCount! > 1 ? _pageCount! - 1 : null,
+                            values: RangeValues(
+                              _fromPage.toDouble(),
+                              _toPage.toDouble(),
+                            ),
+                            onChanged: (values) => setState(() {
+                              _fromPage = values.start.round();
+                              _toPage = values.end.round();
+                            }),
+                          ),
+                        ],
+                      ),
+              ),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton.icon(
-                  onPressed: _pickFiles,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Add more'),
+              padding: const EdgeInsets.all(16),
+              child: SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _canContinue ? _continue : null,
+                  child: const Text('Continue'),
                 ),
               ),
             ),
-          if (widget.tool == PdfTool.compress || widget.tool == PdfTool.merge)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: SegmentedButton<CompressionQuality>(
-                segments: const [
-                  ButtonSegment(value: CompressionQuality.low, label: Text('Low')),
-                  ButtonSegment(value: CompressionQuality.medium, label: Text('Medium')),
-                  ButtonSegment(value: CompressionQuality.high, label: Text('High')),
-                ],
-                selected: {_quality},
-                onSelectionChanged: (s) => setState(() => _quality = s.first),
-              ),
-            ),
-          if (widget.tool == PdfTool.split && _files.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: _loadingPageCount
-                  ? const CircularProgressIndicator()
-                  : _pageCount == null
-                      ? const SizedBox.shrink()
-                      : Column(
-                          children: [
-                            Text('Pages ${_fromPage + 1}–${_toPage + 1} of $_pageCount'),
-                            RangeSlider(
-                              min: 0,
-                              max: (_pageCount! - 1).toDouble(),
-                              divisions: _pageCount! > 1 ? _pageCount! - 1 : null,
-                              values: RangeValues(_fromPage.toDouble(), _toPage.toDouble()),
-                              onChanged: (values) => setState(() {
-                                _fromPage = values.start.round();
-                                _toPage = values.end.round();
-                              }),
-                            ),
-                          ],
-                        ),
-            ),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: _canContinue ? _continue : null,
-                child: const Text('Continue'),
-              ),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
